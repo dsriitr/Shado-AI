@@ -31,6 +31,9 @@ jobs:
           yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
           "$SDKMANAGER" "platforms;android-34" "build-tools;34.0.0" "platform-tools"
 
+      - name: Show toolchain versions
+        run: java -version 2>&1 && echo "runner=$RUNNER_OS $RUNNER_ARCH"
+
       - name: Build debug APK
         working-directory: t240-ble-test
         run: ./gradlew assembleDebug --no-daemon --stacktrace
