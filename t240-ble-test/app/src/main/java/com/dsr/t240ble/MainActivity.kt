@@ -36,7 +36,9 @@ import java.util.UUID
 
 /**
  * Minimal test app proving that a custom app can:
- *   1. discover + connect to a Shengmai T240 "Record Card" over BLE,
+ *   1. discover + connect to a Shengmai "Record Card" over BLE (T240 / T150 / M2 —
+ *      same vendor protocol; the scan filter is editable and any device advertising
+ *      service 1910 is accepted regardless of its advertised name),
  *   2. complete the handshake/bind flow (within the device's 5 s window),
  *   3. exchange commands: time sync, battery, and "USB disk" enable.
  *
@@ -73,7 +75,9 @@ class MainActivity : Activity() {
         const val CMD_STORAGE_SET = 0x70
         const val CMD_STORAGE_GET = 0x71
 
-        const val DEVICE_NAME_MATCH = "T240"
+        // Editable at runtime — the family ships as T240(BLE), T150(BLE), M2(...) etc.
+        // A device advertising the 1910 service is accepted regardless of its name.
+        const val DEFAULT_NAME_FILTER = "T150"
         const val SCAN_TIMEOUT_MS = 15_000L
         const val HANDSHAKE_TIMEOUT_MS = 6_000L
         const val USB_STEP_TIMEOUT_MS = 2_000L
@@ -88,6 +92,10 @@ class MainActivity : Activity() {
     private lateinit var logView: TextView
     private lateinit var logScroll: ScrollView
     private lateinit var rawInput: EditText
+    private lateinit var nameInput: EditText
+
+    /** addresses already logged this scan, so each device is listed once */
+    private val seenDevices = HashSet<String>()
 
     private var state = State.DISCONNECTED
     private var gatt: BluetoothGatt? = null
@@ -132,6 +140,17 @@ class MainActivity : Activity() {
             setTypeface(null, Typeface.BOLD)
         }
         root.addView(statusView)
+
+        val row0 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        row0.addView(TextView(this).apply { text = "Name: "; textSize = 13f })
+        nameInput = EditText(this).apply {
+            setText(DEFAULT_NAME_FILTER)
+            hint = "name filter (blank = any)"
+            textSize = 13f
+            layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
+        }
+        row0.addView(nameInput)
+        root.addView(row0)
 
         val row1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         row1.addView(button("Scan & Connect") { onScanConnect() })
@@ -253,7 +272,10 @@ class MainActivity : Activity() {
         val scanner = adapter.bluetoothLeScanner ?: run { log("!! no BLE scanner"); return }
 
         setStatus(State.SCANNING, null)
-        log("scanning for name containing \"$DEVICE_NAME_MATCH\"…")
+        seenDevices.clear()
+        val filter = nameInput.text.toString().trim()
+        log(if (filter.isEmpty()) "scanning — will take the first device advertising service 1910…"
+            else "scanning for name containing \"$filter\" (or any device advertising service 1910)…")
         if (Build.VERSION.SDK_INT < 31) log("(Android <12: location services must be ON for BLE scan)")
         scanning = true
         val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
@@ -261,8 +283,9 @@ class MainActivity : Activity() {
         scanStopper = Runnable {
             if (scanning) {
                 stopScan()
-                setStatus(State.FAILED, "no T240 found in ${SCAN_TIMEOUT_MS / 1000}s")
-                log("!! scan timeout — no device with \"$DEVICE_NAME_MATCH\" in name found")
+                setStatus(State.FAILED, "no match in ${SCAN_TIMEOUT_MS / 1000}s")
+                log("!! scan timeout — nothing matched. Devices seen are listed above; " +
+                    "put part of the right name in the Name box (or clear it) and scan again.")
             }
         }.also { ui.postDelayed(it, SCAN_TIMEOUT_MS) }
     }
@@ -277,12 +300,26 @@ class MainActivity : Activity() {
 
     private val scanCb = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
-            val name = result.device.name ?: result.scanRecord?.deviceName ?: return
-            if (!name.contains(DEVICE_NAME_MATCH, ignoreCase = true)) return
             if (!scanning) return
+            val addr = result.device.address
+            val name = result.device.name ?: result.scanRecord?.deviceName
+            val advertisesService =
+                result.scanRecord?.serviceUuids?.any { it.uuid == SERVICE_UUID } == true
+
+            // list everything once so a wrong filter is obvious from the log
+            if (seenDevices.add(addr)) {
+                log("  saw: \"${name ?: "(no name)"}\" $addr rssi=${result.rssi}" +
+                    if (advertisesService) "  [advertises 1910]" else "")
+            }
+
+            val filter = nameInput.text.toString().trim()
+            val nameMatches = name != null &&
+                (filter.isEmpty() || name.contains(filter, ignoreCase = true))
+            if (!nameMatches && !advertisesService) return
+
             stopScan()
-            log("found \"$name\" ${result.device.address} rssi=${result.rssi}")
-            setStatus(State.CONNECTING, name)
+            log("MATCH \"${name ?: "(no name)"}\" $addr — connecting")
+            setStatus(State.CONNECTING, name ?: addr)
             gatt = result.device.connectGatt(
                 this@MainActivity, false, gattCb, android.bluetooth.BluetoothDevice.TRANSPORT_LE
             )

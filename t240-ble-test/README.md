@@ -3,7 +3,12 @@
 Minimal Android app whose only job is to prove a custom app can talk to the
 Shengmai T240 "Record Card" over BLE:
 
-1. **Scan & Connect** — finds a device whose name contains `T240`, connects.
+1. **Scan & Connect** — finds the recorder and connects. The **Name** box at the top
+   is the scan filter (default `T150`; real units ship as `T240(BLE)`, `T150(BLE)`,
+   `M2(...)`, …). Matching is case-insensitive and partial, a device advertising
+   service `1910` is accepted regardless of name, and clearing the box takes the
+   first `1910` device seen. Every device found is listed in the log, so a wrong
+   filter is obvious immediately.
 2. **Handshake/bind** — enables notifications on `1911` (this opens the data
    channel and starts the device's 5-second handshake window), receives the
    device UUID, replies with a persisted app-generated UUID + timestamp, and
