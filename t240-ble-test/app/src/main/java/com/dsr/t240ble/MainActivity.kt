@@ -667,7 +667,7 @@ class MainActivity : Activity() {
     private fun onStorageState(code: Int) {
         if (usbStep == 3) { cancelUsbTimeout(); usbStep = 0 }
         if (code == 0x00) {
-            log("USB DISK ENABLED ✓ — storage allowed. Plug the T240 into a computer; it should mount as a drive.")
+            log("USB DISK ENABLED ✓ — storage allowed. Plug the device into a computer; it should mount as a drive.")
             toast("USB disk enabled ✓")
         } else {
             log("!! storage still disabled (0x%02X) — USB disk NOT available".format(code))

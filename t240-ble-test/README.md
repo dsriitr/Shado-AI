@@ -1,5 +1,26 @@
 # T240 BLE Connect Test
 
+## Verified on real hardware — T150(BLE), 2026-08-14
+
+Confirmed the T150 speaks the T240 protocol byte-for-byte; no adaptation was needed.
+
+| Step | Frame | Result |
+| --- | --- | --- |
+| Bind | `RX 01 01 00 02 00` + info JSON | **Bound ✓** in 300 ms (5 s window) |
+| Time sync | `01 04 00` + 14 ASCII chars | echoed exactly |
+| Battery | `RX 01 09 00 59` | 89% |
+| Close WiFi | `RX 01 0B 00` | ack |
+| Enable storage | `RX 01 70 00 01` | success |
+| Verify storage | `RX 01 71 00 00` | storage allowed → USB disk on |
+
+Device reported: `name T150(BLE)`, `SN 351504224120000008`, `brand 升迈`,
+`model Record Card`, `deviceVerson 2024-06-06`, `screen no`,
+`WifiSsid T150(016a7d0d3263)`. MTU negotiated to 509 (payload 506).
+
+Notes for the next phase: the WiFi hotspot password is the **first 8 chars of the
+device UUID** (here `560fcdd9`), and `0x70` is only accepted when
+`isAudioRecorded` is `"0"` — it is rejected mid-recording.
+
 Minimal Android app whose only job is to prove a custom app can talk to the
 Shengmai T240 "Record Card" over BLE:
 
