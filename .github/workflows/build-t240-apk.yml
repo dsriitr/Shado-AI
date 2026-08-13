@@ -14,6 +14,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # Only GitHub-authored actions/* are used here, so this works even when the
+      # repository restricts third-party actions. The ubuntu-latest image already
+      # ships the Android SDK, so no setup-android action is needed.
       - uses: actions/checkout@v4
 
       - uses: actions/setup-java@v4
@@ -21,9 +24,12 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
-
-      - uses: gradle/actions/setup-gradle@v4
+      - name: Install Android SDK packages
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME  ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          "$SDKMANAGER" "platforms;android-34" "build-tools;34.0.0" "platform-tools"
 
       - name: Build debug APK
         working-directory: t240-ble-test
